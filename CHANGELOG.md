@@ -1,5 +1,39 @@
 # Changelog
 
+## 3.3.6 - 2026-09-21
+
+- Preserve mirror/origin relationship metadata from public API exports and compact document reads in the SQLite cache and JSON read, find, and search output.
+- Classify `origin_id: null` as a mirror with an inaccessible origin and retain explicit empty `mirror_ids` as origin metadata.
+- Use the documented production public API for mirror creation and removal while keeping richer relationship inspection on beta.
+- Migrate existing account caches in place with nullable mirror metadata columns.
+
+## 3.3.5 - 2026-09-09
+
+- Fix `doc:edit` / MCP `edit_doc` updates, moves, and deletes for references nested anywhere under the requested root by planning calls against each node's live parent; reject out-of-root references instead of reporting false success.
+- Add `wf completions --shell bash|zsh|fish` to print completion scripts without installing files or modifying shell configuration.
+
+## 3.3.4 - 2026-09-09
+
+- Document the `doc:edit` item fields (`n`, `d`, `l`, `x`, and `c`) and expand the nested outline example to show notes and todo completion state. Thanks to @waldyrious for PR #4.
+
+## 3.3.3 - 2026-08-10
+
+- Route ordinary node create, update, delete, move, complete, and uncomplete operations through the documented public v1 API while retaining the LLM document API for nested, grouped, and insert-after edits.
+- Allow public API writes to unmaterialized Calendar targets such as `@today`, `@tomorrow`, and `@next-week`, then retain the materialized node mapping for immediate reads.
+- Preserve local bookmark precedence over built-in system destinations so bookmarked targets such as `@inbox` continue writing to the intended node.
+
+## 3.3.2 - 2026-08-04
+
+- Add a configurable `defaults.addPosition` setting for `wf add` and `wf node:add`, while keeping `bottom` as the default.
+- Expose the same optional `top` or `bottom` position override through the MCP add tools.
+
+## 3.3.1 - 2026-07-21
+
+- Add production/beta public API selection through `--api-environment`, the `--beta` shortcut, persistent `api.environment` config, and `WORKFLOWY_API_ENVIRONMENT` for automation.
+- Add beta mirror inspection, creation, and removal commands, including mirror/origin metadata and confirmation before removing a mirror root.
+- Teach the built-in MCP server how mirrors behave and expose mirror tools with origin-preserving safety guidance.
+- Keep production and beta caches separate and report the active endpoint in diagnostics and sync metadata.
+
 ## 3.3.0 - 2026-07-11
 
 - Retain an independent SQLite node cache for every configured account instead of replacing one shared node table on account switches.

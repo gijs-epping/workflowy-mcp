@@ -6,7 +6,7 @@ import { join } from "path";
 import { resetCacheDb, replaceAllNodes, setMeta } from "../shared/cache.ts";
 import { saveConfig, setAccountOverride } from "../shared/config.ts";
 import { cacheTargets, resetDb, saveBookmark } from "../shared/db.ts";
-import { ensureMcpCacheReadyForInitialize, getMcpCliInvocation, getMcpInitializeSyncReason, isAllowedMcpOrigin, isAuthorizedMcpHttpRequest } from "./mcp.ts";
+import { buildToolInvocation, ensureMcpCacheReadyForInitialize, getMcpCliInvocation, getMcpInitializeSyncReason, isAllowedMcpOrigin, isAuthorizedMcpHttpRequest } from "./mcp.ts";
 
 const CWD = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -306,7 +306,7 @@ test("responds to newline-delimited initialize messages over stdio", async () =>
     expect(response.jsonrpc).toBe("2.0");
     expect(response.id).toBe(1);
     expect(response.result.protocolVersion).toBe("2024-11-05");
-    expect(response.result.serverInfo).toEqual({ name: "workflowy", version: "3.3.0" });
+    expect(response.result.serverInfo).toEqual({ name: "workflowy", version: "3.3.6" });
     expect(response.result.capabilities).toEqual({ tools: {} });
     expect(response.result.instructions).toContain("## STOP — Read This First");
     expect(response.result.instructions).toContain("workflowy_targets");
@@ -317,6 +317,9 @@ test("responds to newline-delimited initialize messages over stdio", async () =>
     expect(response.result.instructions).toContain("@today");
     expect(response.result.instructions).toContain("<time startYear=\"2026\" startMonth=\"6\" startDay=\"3\">Jun 3, 2026</time>");
     expect(response.result.instructions).toContain("auto-refreshes the local cache");
+    expect(response.result.instructions).toContain("## Mirrors");
+    expect(response.result.instructions).toContain("data.mirror.origin_id");
+    expect(response.result.instructions).toContain("not an independent copy");
   });
 });
 
@@ -567,7 +570,7 @@ test("tools/list explains nested outline writes and batch markdown limits", asyn
           name: string;
           description: string;
           inputSchema: {
-            properties?: Record<string, { description?: string }>;
+            properties?: Record<string, { description?: string; enum?: string[] }>;
           };
         }>;
       };
@@ -584,6 +587,20 @@ test("tools/list explains nested outline writes and batch markdown limits", asyn
     expect(editDocTool).toBeDefined();
     expect(editDocTool?.description).toContain("Prefer this for nested outline writes");
     expect(editDocTool?.inputSchema.properties?.operations?.description).toContain("Prefer insert with nested item trees");
+
+    const addTool = response.result.tools.find((tool) => tool.name === "workflowy_add");
+    const addAliasTool = response.result.tools.find((tool) => tool.name === "add");
+    expect(addTool?.inputSchema.properties?.position?.enum).toEqual(["top", "bottom"]);
+    expect(addTool?.inputSchema.properties?.position?.description).toContain("defaults.addPosition");
+    expect(addAliasTool?.inputSchema.properties?.position?.enum).toEqual(["top", "bottom"]);
+
+    const mirrorInfoTool = response.result.tools.find((tool) => tool.name === "workflowy_mirror_info");
+    const mirrorCreateTool = response.result.tools.find((tool) => tool.name === "workflowy_mirror_create");
+    const mirrorRemoveTool = response.result.tools.find((tool) => tool.name === "workflowy_mirror_remove");
+    expect(mirrorInfoTool?.description).toContain("origin_id / mirror_ids");
+    expect(mirrorCreateTool?.description).toContain("not a copy");
+    expect(mirrorRemoveTool?.description).toContain("preserving the canonical origin");
+    expect(mirrorRemoveTool?.inputSchema.properties?.confirm).toBeDefined();
   });
 });
 
@@ -604,6 +621,29 @@ test("uses the compiled executable when MCP runs from a bundled binary", () => {
     "--agent",
     "search",
     "test",
+  ]);
+});
+
+test("forwards optional add position overrides and otherwise leaves the configured default in control", () => {
+  expect(buildToolInvocation("workflowy_add", {
+    to: "@inbox",
+    text: "Pin this first",
+    position: "top",
+  })?.cmdArgs).toEqual([
+    "node:add",
+    "@inbox",
+    "Pin this first",
+    "--position",
+    "top",
+  ]);
+
+  expect(buildToolInvocation("add", {
+    to: "@inbox",
+    text: "Use configured default",
+  })?.cmdArgs).toEqual([
+    "node:add",
+    "@inbox",
+    "Use configured default",
   ]);
 });
 
@@ -1106,7 +1146,7 @@ test("returns MCP tool errors instead of blank text when the CLI call fails", as
       method: "tools/call",
       params: {
         name: "workflowy_read",
-        arguments: { target: "@today" },
+        arguments: { target: "Missing target" },
       },
     });
 
